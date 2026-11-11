@@ -52,7 +52,7 @@ const cols = `id, name, device_token, platform, app_bundle_id, last_seen_at, cre
 func scan(row interface{ Scan(...any) error }) (Device, error) {
 	var d Device
 	err := row.Scan(&d.ID, &d.Name, &d.DeviceToken, &d.Platform, &d.AppBundleID, &d.LastSeenAt, &d.CreatedAt, &d.UpdatedAt)
-	d.HasToken = d.DeviceToken != nil && *d.DeviceToken != ""
+	d.HasToken = (d.DeviceToken != nil && *d.DeviceToken != "") || d.Platform == "web"
 	return d, err
 }
 
@@ -179,7 +179,7 @@ func (s *Store) Pushable(ctx context.Context) ([]Device, error) {
 	}
 	out := all[:0]
 	for _, d := range all {
-		if d.HasToken {
+		if d.HasToken && d.Platform != "web" {
 			out = append(out, d)
 		}
 	}

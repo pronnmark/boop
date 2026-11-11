@@ -42,6 +42,9 @@ func Handler() http.Handler {
 					// update reaches browsers that already installed the app.
 					w.Header().Set("Cache-Control", "no-cache")
 				}
+				if strings.HasSuffix(p, ".webmanifest") {
+					w.Header().Set("Content-Type", "application/manifest+json")
+				}
 				server.ServeHTTP(w, r)
 				return
 			}

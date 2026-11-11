@@ -159,7 +159,10 @@ func (d *Dispatcher) Deliver(ctx context.Context, e events.Event, p projects.Pro
 		out = append(out, rec)
 	}
 	if d.web != nil {
-		out = append(out, d.web.Deliver(ctx, e, p, n)...)
+		for _, rec := range d.web.Deliver(ctx, e, p, n) {
+			d.record(ctx, rec)
+			out = append(out, rec)
+		}
 	}
 	return out
 }
