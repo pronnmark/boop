@@ -102,8 +102,9 @@ func Load() (Config, error) {
 	if (c.AdminUser == "") != (c.AdminPassword == "") {
 		return c, fmt.Errorf("BOOP_ADMIN_USER and BOOP_ADMIN_PASSWORD must be set together")
 	}
-	if c.AdminPassword != "" && len(c.AdminPassword) < 8 {
-		return c, fmt.Errorf("BOOP_ADMIN_PASSWORD must be at least 8 characters")
+	// patch (pronnmark fork): minimum dropped from 8 so short admin passwords work.
+	if c.AdminPassword != "" && len(c.AdminPassword) < 1 {
+		return c, fmt.Errorf("BOOP_ADMIN_PASSWORD must not be empty")
 	}
 	if c.MCPToken != "" && len(c.MCPToken) < 16 {
 		return c, fmt.Errorf("BOOP_MCP_TOKEN must be at least 16 characters")
