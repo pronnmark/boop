@@ -82,6 +82,16 @@ func run() error {
 	dispatcher := delivery.New(db, devStore, sender, log)
 	dispatcher.Start(ctx)
 
+	// Browser push: VAPID keys live in settings, generated on first boot.
+	webpush, err := delivery.NewWebPush(ctx, db, devStore, st, cfg.BaseURL, log)
+	if err != nil {
+		log.Error("webpush.disabled", "error", err.Error())
+		webpush = nil
+	} else {
+		dispatcher.SetWebPush(webpush)
+		log.Info("webpush.configured")
+	}
+
 	admin := auth.NewAdmin(cfg.AdminUser, cfg.AdminPassword)
 	if admin.Enabled() {
 		log.Info("auth.enabled", "user", cfg.AdminUser)
@@ -93,7 +103,7 @@ func run() error {
 	srv := &api.Server{
 		Config: cfg, DB: db, Log: log, Settings: st,
 		Projects: projects.New(db), Devices: devStore, Pairing: pairing.New(db, devStore), Events: evStore, Silences: silences.New(db),
-		Dispatcher: dispatcher, APNS: client, APNSError: apnsErr, Admin: admin, StartedAt: time.Now(), Web: web.Handler(),
+		Dispatcher: dispatcher, WebPush: webpush, APNS: client, APNSError: apnsErr, Admin: admin, StartedAt: time.Now(), Web: web.Handler(),
 	}
 
 	go retentionLoop(ctx, log, st, evStore, srv.Pairing, cfg.RetentionDays)

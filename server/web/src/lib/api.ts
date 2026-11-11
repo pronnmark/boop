@@ -202,6 +202,11 @@ export const api = {
   updateDevice: (id: string, patch: { name?: string }) => request<Device>('PATCH', `/api/v1/devices/${id}`, patch),
   deleteDevice: (id: string) => request<void>('DELETE', `/api/v1/devices/${id}`),
 
+  webpushKey: () => request<{ public_key: string; subscriptions: number }>('GET', '/api/v1/webpush/key'),
+  webpushSubscribe: (sub: { endpoint: string; keys: { p256dh: string; auth: string } }) =>
+    request<{ device_id: string }>('POST', '/api/v1/webpush/subscribe', sub),
+  webpushUnsubscribe: (endpoint: string) => request<{ ok: boolean }>('POST', '/api/v1/webpush/unsubscribe', { endpoint }),
+
   createPairing: () => request<PairingToken>('POST', '/api/v1/pairing'),
   pendingPairings: () => request<{ pairing_tokens: PairingToken[] }>('GET', '/api/v1/pairing'),
   revokePairing: (id: string) => request<void>('DELETE', `/api/v1/pairing/${id}`),

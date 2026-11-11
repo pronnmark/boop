@@ -17,6 +17,8 @@ const (
 	KeySetupCompleted = "setup_completed"
 	KeyRedactKeys     = "redact_keys" // comma-separated, added to the built-in list
 	KeyMCPEnabled     = "mcp_enabled" // "false" turns the /mcp endpoint off; unset = on
+	KeyVAPIDPrivate   = "vapid_private" // VAPID key pair for browser push, generated on first boot
+	KeyVAPIDPublic    = "vapid_public"
 )
 
 // Store reads and writes settings.

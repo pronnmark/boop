@@ -43,7 +43,8 @@ type Server struct {
 	Events     *events.Store
 	Silences   *silences.Store
 	Dispatcher *delivery.Dispatcher
-	APNS       *apns.Client // nil when not configured
+	WebPush    *delivery.WebPush // browser push (PWA)
+	APNS       *apns.Client      // nil when not configured
 	APNSError  string       // why APNS is nil
 	Admin      *auth.Admin  // web UI / admin API login; open when not enabled
 	StartedAt  time.Time
@@ -78,6 +79,11 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("PATCH /api/v1/devices/{id}", s.deviceOrAdmin(s.updateDevice))
 	mux.Handle("DELETE /api/v1/devices/{id}", s.deviceOrAdmin(s.deleteDevice))
 	mux.Handle("GET /api/v1/devices", s.adminAuth(s.listDevices))
+
+	// Browser push (the installed PWA and any browser that allows notifications).
+	mux.Handle("GET /api/v1/webpush/key", s.adminAuth(s.webpushKey))
+	mux.Handle("POST /api/v1/webpush/subscribe", s.adminAuth(s.webpushSubscribe))
+	mux.Handle("POST /api/v1/webpush/unsubscribe", s.adminAuth(s.webpushUnsubscribe))
 
 	// Pairing.
 	mux.Handle("POST /api/v1/pairing", s.adminAuth(s.createPairing))
@@ -872,6 +878,64 @@ func (s *Server) listDevices(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"devices": ds})
+}
+
+// ---- browser push ----
+
+// webpushKey returns the VAPID key the browser subscribes with, plus how many
+// subscriptions the server holds.
+func (s *Server) webpushKey(w http.ResponseWriter, r *http.Request) {
+	if s.WebPush == nil {
+		writeError(w, http.StatusServiceUnavailable, "webpush_disabled", "browser push is not configured")
+		return
+	}
+	n, err := s.WebPush.Count(r.Context())
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"public_key": s.WebPush.PublicKey(), "subscriptions": n})
+}
+
+func (s *Server) webpushSubscribe(w http.ResponseWriter, r *http.Request) {
+	if s.WebPush == nil {
+		writeError(w, http.StatusServiceUnavailable, "webpush_disabled", "browser push is not configured")
+		return
+	}
+	var in struct {
+		Endpoint string `json:"endpoint"`
+		Keys     struct {
+			P256DH string `json:"p256dh"`
+			Auth   string `json:"auth"`
+		} `json:"keys"`
+	}
+	if !readJSON(w, r, &in) {
+		return
+	}
+	id, err := s.WebPush.Subscribe(r.Context(), r.UserAgent(), in.Endpoint, in.Keys.P256DH, in.Keys.Auth)
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{"device_id": id})
+}
+
+func (s *Server) webpushUnsubscribe(w http.ResponseWriter, r *http.Request) {
+	if s.WebPush == nil {
+		writeError(w, http.StatusServiceUnavailable, "webpush_disabled", "browser push is not configured")
+		return
+	}
+	var in struct {
+		Endpoint string `json:"endpoint"`
+	}
+	if !readJSON(w, r, &in) {
+		return
+	}
+	if err := s.WebPush.Unsubscribe(r.Context(), in.Endpoint); err != nil {
+		s.fail(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
 // ---- pairing ----

@@ -37,6 +37,10 @@ func Handler() http.Handler {
 				f.Close()
 				if strings.HasPrefix(p, "/assets/") {
 					w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+				} else if p == "/sw.js" || p == "/manifest.webmanifest" {
+					// The service worker and manifest must be revalidated so an
+					// update reaches browsers that already installed the app.
+					w.Header().Set("Cache-Control", "no-cache")
 				}
 				server.ServeHTTP(w, r)
 				return

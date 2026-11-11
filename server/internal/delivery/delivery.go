@@ -46,7 +46,8 @@ type Delivery struct {
 type Dispatcher struct {
 	db      *sql.DB
 	devices *devices.Store
-	sender  Sender // nil when APNs is not configured
+	sender  Sender   // nil when APNs is not configured
+	web     *WebPush // nil when browser push is not wired
 	log     *slog.Logger
 	timeout time.Duration
 
@@ -63,6 +64,17 @@ type job struct {
 // recorded as skipped.
 func New(db *sql.DB, d *devices.Store, sender Sender, log *slog.Logger) *Dispatcher {
 	return &Dispatcher{db: db, devices: d, sender: sender, log: log, timeout: 10 * time.Second, queue: make(chan job, 1024)}
+}
+
+// SetWebPush attaches browser push delivery.
+func (d *Dispatcher) SetWebPush(w *WebPush) { d.web = w }
+
+// record stores one delivery attempt.
+func (d *Dispatcher) record(ctx context.Context, rec Delivery) {
+	if _, err := d.db.ExecContext(ctx, `INSERT INTO deliveries (id, event_id, device_id, status, apns_id, error, attempted_at, created_at) VALUES (?,?,?,?,?,?,?,?)`,
+		rec.ID, rec.EventID, rec.DeviceID, rec.Status, rec.APNSID, rec.Error, rec.AttemptedAt, rec.AttemptedAt); err != nil {
+		d.log.Error("delivery.record_failed", "error", err.Error())
+	}
 }
 
 // Start runs the background worker until ctx is cancelled.
@@ -143,11 +155,11 @@ func (d *Dispatcher) Deliver(ctx context.Context, e events.Event, p projects.Pro
 				d.log.Info("push.sent", "event_id", e.ID, "device_id", dev.ID, "apns_id", apnsID)
 			}
 		}
-		if _, err := d.db.ExecContext(ctx, `INSERT INTO deliveries (id, event_id, device_id, status, apns_id, error, attempted_at, created_at) VALUES (?,?,?,?,?,?,?,?)`,
-			rec.ID, rec.EventID, rec.DeviceID, rec.Status, rec.APNSID, rec.Error, rec.AttemptedAt, rec.AttemptedAt); err != nil {
-			d.log.Error("delivery.record_failed", "error", err.Error())
-		}
+		d.record(ctx, rec)
 		out = append(out, rec)
+	}
+	if d.web != nil {
+		out = append(out, d.web.Deliver(ctx, e, p, n)...)
 	}
 	return out
 }

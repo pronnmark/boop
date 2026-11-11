@@ -14,6 +14,7 @@
   import { panel, pop, reorder, soft } from '../lib/motion'
   import Skeleton from '../lib/ui/Skeleton.svelte'
   import { link } from '../lib/router.svelte'
+  import { pushState, enablePush, disablePush, type PushState } from '../lib/push'
 
   let status = $state<Status | null>(null)
   let settings = $state<Settings | null>(null)
@@ -29,6 +30,26 @@
   let silValue = $state('')
   let silProject = $state('')
   let silNote = $state('')
+  let push = $state<PushState>('off')
+  let pushBusy = $state(false)
+
+  const PUSH_HINT: Record<PushState, string> = {
+    on: 'This browser is subscribed: Boop events appear as system notifications here.',
+    off: 'Show Boop events as notifications in this browser. macOS asks for permission the first time.',
+    denied: 'Notifications are blocked for this site. Allow them in the browser settings, then reload.',
+    unsupported: 'This browser cannot receive push notifications.',
+  }
+
+  async function togglePush() {
+    pushBusy = true
+    try {
+      push = push === 'on' ? await disablePush() : await enablePush()
+    } catch (e: any) {
+      error = e.message
+    } finally {
+      pushBusy = false
+    }
+  }
 
   async function loadSilences() {
     try {
@@ -72,6 +93,7 @@
   }
   $effect(() => {
     load()
+    pushState().then((s) => (push = s))
   })
 
   async function setMCP(v: boolean) {
@@ -209,6 +231,17 @@
         <p class="secondary lead" style="margin-top: 16px">Add these to your container environment. The private key should be mounted as a file, not pasted into an environment variable.</p>
         <CodeBlock code={`APNS_TEAM_ID=YOUR_TEAM_ID\nAPNS_KEY_ID=YOUR_KEY_ID\nAPNS_BUNDLE_ID=com.example.Boop\nAPNS_PRIVATE_KEY_PATH=/run/secrets/apns.p8\nAPNS_ENVIRONMENT=production`} />
       {/if}
+    </Card>
+
+    <Card title="Desktop notifications">
+      <p class="secondary lead">This browser receives Boop events as system notifications, independently of APNs. On Chrome for macOS use Cast, save and share → Install page as app so notifications keep arriving without a browser tab open.</p>
+      <SettingRow label="This browser" hint={PUSH_HINT[push]}>
+        {#if push === 'on'}
+          <Button variant="secondary" onclick={togglePush} disabled={pushBusy}>{pushBusy ? 'Working' : 'Turn off'}</Button>
+        {:else}
+          <Button onclick={togglePush} disabled={pushBusy || push === 'unsupported' || push === 'denied'}>{pushBusy ? 'Working' : 'Enable'}</Button>
+        {/if}
+      </SettingRow>
     </Card>
 
     <Card title="Test Boop">
